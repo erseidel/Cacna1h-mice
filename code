@@ -1,0 +1,205 @@
+library (ggplot2)
+library (lme4)
+library (lmtest)
+library (orddom)
+library (cowplot)
+library (zoo)
+library (scales)
+library (reshape2)
+library (vegan)
+library (pwr)
+
+### loading and preparing data
+
+data <- read.table (file = "CACNA1H_BP_20200612.r", header = T, sep = "\t")
+data$Time.2 <- paste (data$Day, data$Time.1)
+
+varName <- "Systolic BP\n(mmHg)"
+cleanData <- subset (data, ! is.na (Systolic) & ID != "PROXY_TG" & ID != "PROXY_CTRL")
+cleanData2 <- subset (data, ! is.na (Systolic) & (ID == "PROXY_TG" | ID == "PROXY_CTRL"))
+cleanData$Var <- cleanData$Systolic
+cleanData2$Var <- cleanData2$Systolic
+
+mFullHSD <- glmer (data = subset (cleanData, Diet == "HSD"), Var ~ (1 | ID) + (1 | Time.2) + Group + DN, REML = F)
+mGroupHSD <- glmer (data = subset (cleanData, Diet == "HSD"), Var ~ (1 | ID) + (1 | Time.2) + DN, REML = F)
+pGroupHSD <- lrtest (mFullHSD, mGroupHSD)$"Pr(>Chisq)" [2]
+print ("SysBP, HSD only, P:")
+print (pGroupHSD)
+
+mFullNSD <- glmer (data = subset (cleanData, Diet == "NSD"), Var ~ (1 | ID) + (1 | Time.2) + Group + DN, REML = F)
+mGroupNSD <- glmer (data = subset (cleanData, Diet == "NSD"), Var ~ (1 | ID) + (1 | Time.2) + DN, REML = F)
+pGroupNSD <- lrtest (mFullNSD, mGroupNSD)$"Pr(>Chisq)" [2]
+print ("SysBP, NSD only, P:")
+print (pGroupNSD)
+
+iWT1 <- mean (subset (cleanData, Group != "HET" & Diet != "HSD")$Var) 
+iHET1 <- mean (subset (cleanData, Group == "HET" & Diet != "HSD")$Var) 
+
+iWT1H <- mean (subset (cleanData, Group != "HET" & Diet == "HSD")$Var) 
+iHET1H <- mean (subset (cleanData, Group == "HET" & Diet == "HSD")$Var) 
+
+pSystolic <- ggplot (cleanData, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanData, ID == "P09_LN1304" & DN == "Night"), aes (y = 105), shape = 124, size = 0.5) + coord_cartesian (ylim = c (105, 150)) + scale_y_continuous (breaks = c (105, 110, 115, 120, 125, 130, 135, 140, 145, 150)) + geom_segment (aes (x = 1, xend = 2016, y = iWT1, yend = iWT1), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2016, y = iHET1, yend = iHET1), colour = "red", size = 0.5, linetype = "dashed")  + geom_segment (aes (x = 2017, xend = 4032, y = iWT1H, yend = iWT1H), colour = "black", size = 0.5) + geom_segment (aes (x = 2017, xend = 4032, y = iHET1H, yend = iHET1H), colour = "red", size = 0.5, linetype = "dashed")
+
+cleanDataHSD = subset (cleanData, Diet == "HSD")
+cleanDataNSD = subset (cleanData, Diet != "HSD")
+
+pSystolicHSD <- ggplot (cleanDataHSD, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanDataHSD, (ID == "P09_LN1412" | ID == "P11_1306" | ID == "P29_LN1402") & DN == "Night"), aes (y = 105), shape = 124, size = 0.5) + coord_cartesian (ylim = c (105, 160)) + scale_y_continuous (breaks = c (105, 115, 125, 135, 145)) + geom_segment (aes (x = 1, xend = 2304, y = iWT1H, yend = iWT1H), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2304, y = iHET1H, yend = iHET1H), colour = "red", size = 0.5, linetype = "dashed") + theme (axis.title.y = element_blank (), axis.text.y = element_blank (), axis.ticks.y = element_blank ()) + ylab ("") + annotate (geom = "text", x = 250, y = 155, label = "HSD", color = "black", size = 2) + geom_segment (aes (x = 1, xend = 1, y = 105, yend = 150), colour = "black", size = 1)
+
+pSystolicNSD <- ggplot (cleanDataNSD, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanDataNSD, (ID == "P28_LN1401" | ID == "P11_1306" | ID == "P29_LN1402") & DN == "Night"), aes (y = 105), shape = 124, size = 0.5) + coord_cartesian (ylim = c (105, 160)) + scale_y_continuous (breaks = c (105, 115, 125, 135, 145)) + geom_segment (aes (x = 1, xend = 2304, y = iWT1, yend = iWT1), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2304, y = iHET1, yend = iHET1), colour = "red", size = 0.5, linetype = "dashed") + geom_segment (aes (x = 2304, xend = 2304, y = 105, yend = 150), colour = "black", size = 1) + annotate (geom = "text", x = 350, y = 157, label = "NSD", color = "black", size = 2) + annotate (geom = "text", x = 1750, y = 157, label = "M1560V", color = "red", size = 2) + geom_segment (aes (x = 1500, xend = 2000, y = 149, yend = 149), colour = "red", size = 0.5, linetype = "dashed") + geom_segment (aes (x = 1500, xend = 2000, y = 147, yend = 147), colour = "black", size = 0.5) + annotate (geom = "text", x = 1750, y = 138, label = "WT", color = "black", size = 2)
+
+varName <- "Diastolic BP\n(mmHg)"
+cleanData <- subset (data, ! is.na (Diastolic) & ID != "PROXY_TG" & ID != "PROXY_CTRL")
+cleanData2 <- subset (data, ! is.na (Diastolic) & (ID == "PROXY_TG" | ID == "PROXY_CTRL"))
+cleanData$Var <- cleanData$Diastolic
+cleanData2$Var <- cleanData2$Diastolic
+
+mFullHSD <- glmer (data = subset (cleanData, Diet == "HSD"), Var ~ (1 | ID) + (1 | Time.2) + Group + DN, REML = F)
+mGroupHSD <- glmer (data = subset (cleanData, Diet == "HSD"), Var ~ (1 | ID) + (1 | Time.2) + DN, REML = F)
+pGroupHSD <- lrtest (mFullHSD, mGroupHSD)$"Pr(>Chisq)" [2]
+print ("DiaBP, HSD only, P:")
+print (pGroupHSD)
+
+mFullNSD <- glmer (data = subset (cleanData, Diet == "NSD"), Var ~ (1 | ID) + (1 | Time.2) + Group + DN, REML = F)
+mGroupNSD <- glmer (data = subset (cleanData, Diet == "NSD"), Var ~ (1 | ID) + (1 | Time.2) + DN, REML = F)
+pGroupNSD <- lrtest (mFullNSD, mGroupNSD)$"Pr(>Chisq)" [2]
+print ("DiaBP, NSD only, P:")
+print (pGroupNSD)
+
+iWT2 <- mean (subset (cleanData, Group != "HET" & Diet != "HSD")$Var) 
+iHET2 <- mean (subset (cleanData, Group == "HET" & Diet != "HSD")$Var) 
+
+iWT2H <- mean (subset (cleanData, Group != "HET" & Diet == "HSD")$Var) 
+iHET2H <- mean (subset (cleanData, Group == "HET" & Diet == "HSD")$Var) 
+
+pDiastolic <- ggplot (cleanData, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanData, (ID == "P09_LN1304" | ID == "P11_1306") & DN == "Night"), aes (y = 75), shape = 124, size = 0.5) + coord_cartesian (ylim = c (75, 110)) + scale_y_continuous (breaks = c (75, 80, 85, 90, 95, 100, 105, 110)) + geom_segment (aes (x = 1, xend = 2016, y = iWT2, yend = iWT2), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2016, y = iHET2, yend = iHET2), colour = "red", size = 0.5, linetype = "dashed")+ geom_segment (aes (x = 2017, xend = 4032, y = iWT2H, yend = iWT2H), colour = "black", size = 0.5) + geom_segment (aes (x = 2017, xend = 4032, y = iHET2H, yend = iHET2H), colour = "red", size = 0.5, linetype = "dashed")
+
+cleanDataHSD = subset (cleanData, Diet == "HSD")
+cleanDataNSD = subset (cleanData, Diet != "HSD")
+
+pDiastolicHSD <- ggplot (cleanDataHSD, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanDataHSD, (ID == "P09_LN1412" | ID == "P11_1306" | ID == "P29_LN1402") & DN == "Night"), aes (y = 75), shape = 124, size = 0.5) + coord_cartesian (ylim = c (75, 110)) + scale_y_continuous (breaks = c (75, 85, 95, 105)) + geom_segment (aes (x = 1, xend = 2304, y = iWT2H, yend = iWT2H), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2304, y = iHET2H, yend = iHET2H), colour = "red", size = 0.5, linetype = "dashed") + theme (axis.title.y = element_blank (), axis.text.y = element_blank (), axis.ticks.y = element_blank ()) + ylab ("") + geom_segment (aes (x = 1, xend = 1, y = 75, yend = 110), colour = "black", size = 1)
+
+pDiastolicNSD <- ggplot (cleanDataNSD, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanDataNSD, (ID == "P28_LN1401" | ID == "P11_1306" | ID == "P29_LN1402") & DN == "Night"), aes (y = 75), shape = 124, size = 0.5) + coord_cartesian (ylim = c (75, 110)) + scale_y_continuous (breaks = c (75, 85, 95, 105)) + geom_segment (aes (x = 1, xend = 2304, y = iWT2, yend = iWT2), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2304, y = iHET2, yend = iHET2), colour = "red", size = 0.5, linetype = "dashed") + geom_segment (aes (x = 2304, xend = 2304, y = 75, yend = 110), colour = "black", size = 1)
+
+varName <- "Heart rate\n(BPM)"
+cleanData <- subset (data, ! is.na (Heart.Rate) & ID != "PROXY_TG" & ID != "PROXY_CTRL")
+cleanData2 <- subset (data, ! is.na (Heart.Rate) & (ID == "PROXY_TG" | ID == "PROXY_CTRL"))
+cleanData$Var <- cleanData$Heart.Rate
+cleanData2$Var <- cleanData2$Heart.Rate
+
+mFullHSD <- glmer (data = subset (cleanData, Diet == "HSD"), Var ~ (1 | ID) + (1 | Time.2) + Group + DN, REML = F)
+mGroupHSD <- glmer (data = subset (cleanData, Diet == "HSD"), Var ~ (1 | ID) + (1 | Time.2) + DN, REML = F)
+pGroupHSD <- lrtest (mFullHSD, mGroupHSD)$"Pr(>Chisq)" [2]
+print ("HR, HSD only, P:")
+print (pGroupHSD)
+
+mFullNSD <- glmer (data = subset (cleanData, Diet == "NSD"), Var ~ (1 | ID) + (1 | Time.2) + Group + DN, REML = F)
+mGroupNSD <- glmer (data = subset (cleanData, Diet == "NSD"), Var ~ (1 | ID) + (1 | Time.2) + DN, REML = F)
+pGroupNSD <- lrtest (mFullNSD, mGroupNSD)$"Pr(>Chisq)" [2]
+print ("HR, NSD only, P:")
+print (pGroupNSD)
+
+iWT3 <- mean (subset (cleanData, Group != "HET" & Diet != "HSD")$Var) 
+iHET3 <- mean (subset (cleanData, Group == "HET" & Diet != "HSD")$Var) 
+
+iWT3H <- mean (subset (cleanData, Group != "HET" & Diet == "HSD")$Var) 
+iHET3H <- mean (subset (cleanData, Group == "HET" & Diet == "HSD")$Var) 
+
+pHR <- ggplot (cleanData, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanData, ID == "P09_LN1304" & DN == "Night"), aes (y = 380), shape = 124, size = 0.5) + coord_cartesian (ylim = c (380, 580)) + scale_y_continuous (breaks = c (380, 420, 460, 500, 540, 580)) + geom_segment (aes (x = 1, xend = 2016, y = iWT3, yend = iWT3), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2016, y = iHET3, yend = iHET3), colour = "red", size = 0.5, linetype = "dashed")  + geom_segment (aes (x = 2017, xend = 4032, y = iWT3H, yend = iWT3H), colour = "black", size = 0.5) + geom_segment (aes (x = 2017, xend = 4032, y = iHET3H, yend = iHET3H), colour = "red", size = 0.5, linetype = "dashed")
+
+cleanDataHSD = subset (cleanData, Diet == "HSD")
+cleanDataNSD = subset (cleanData, Diet != "HSD")
+
+pHRHSD <- ggplot (cleanDataHSD, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanDataHSD, (ID == "P09_LN1412" | ID == "P11_1306" | ID == "P29_LN1402") & DN == "Night"), aes (y = 380), shape = 124, size = 0.5) + coord_cartesian (ylim = c (310, 580)) + scale_y_continuous (breaks = c (380, 480, 580)) + geom_segment (aes (x = 1, xend = 2304, y = iWT3H, yend = iWT3H), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2304, y = iHET3H, yend = iHET3H), colour = "red", size = 0.5, linetype = "dashed") + theme (axis.title.y = element_blank (), axis.text.y = element_blank (), axis.ticks.y = element_blank ()) + ylab ("") + geom_segment (aes (x = 1, xend = 1, y = 380, yend = 580), colour = "black", size = 1) + annotate (geom = "text", x = 1800, y = 560, label = "6 p.m. to 6 a.m.", color = "black", size = 2) + geom_segment (aes (x = 1150, xend = 1300, y = 560, yend = 560), colour = "black", size = 0.5) + annotate (geom = "text", x = 350, y = 332, label = "Time (days)", color = "black", size = 2)
+
+pHRNSD <- ggplot (cleanDataNSD, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanDataNSD, (ID == "P28_LN1401" | ID == "P11_1306" | ID == "P29_LN1402") & DN == "Night"), aes (y = 380), shape = 124, size = 0.5) + coord_cartesian (ylim = c (310, 580)) + scale_y_continuous (breaks = c (380, 480, 580)) + geom_segment (aes (x = 1, xend = 2304, y = iWT3, yend = iWT3), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2304, y = iHET3, yend = iHET3), colour = "red", size = 0.5, linetype = "dashed") + geom_segment (aes (x = 2304, xend = 2304, y = 380, yend = 580), colour = "black", size = 1)
+
+varName <- "MAP\n(mmHg)"
+cleanData <- subset (data, ! is.na (Heart.Rate) & ID != "PROXY_TG" & ID != "PROXY_CTRL")
+cleanData2 <- subset (data, ! is.na (Heart.Rate) & (ID == "PROXY_TG" | ID == "PROXY_CTRL"))
+cleanData$Var <- cleanData$MAP
+cleanData2$Var <- cleanData2$MAP
+
+mFullHSD <- glmer (data = subset (cleanData, Diet == "HSD"), Var ~ (1 | ID) + (1 | Time.2) + Group + DN, REML = F)
+mGroupHSD <- glmer (data = subset (cleanData, Diet == "HSD"), Var ~ (1 | ID) + (1 | Time.2) + DN, REML = F)
+pGroupHSD <- lrtest (mFullHSD, mGroupHSD)$"Pr(>Chisq)" [2]
+print ("MAP, HSD only, P:")
+print (pGroupHSD)
+
+mFullNSD <- glmer (data = subset (cleanData, Diet == "NSD"), Var ~ (1 | ID) + (1 | Time.2) + Group + DN, REML = F)
+mGroupNSD <- glmer (data = subset (cleanData, Diet == "NSD"), Var ~ (1 | ID) + (1 | Time.2) + DN, REML = F)
+pGroupNSD <- lrtest (mFullNSD, mGroupNSD)$"Pr(>Chisq)" [2]
+print ("MAP, NSD only, P:")
+print (pGroupNSD)
+
+iWT4 <- mean (subset (cleanData, Group != "HET" & Diet != "HSD")$Var) 
+iHET4 <- mean (subset (cleanData, Group == "HET" & Diet != "HSD")$Var) 
+
+iWT4H <- mean (subset (cleanData, Group != "HET" & Diet == "HSD")$Var) 
+iHET4H <- mean (subset (cleanData, Group == "HET" & Diet == "HSD")$Var) 
+
+pMAP <- ggplot (cleanData, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanData, ID == "P09_LN1304" & DN == "Night"), aes (y = 90), shape = 124, size = 0.5) + coord_cartesian (ylim = c (90, 125)) + scale_y_continuous (breaks = c (90, 95, 100, 105, 110, 115, 120, 125)) + geom_segment (aes (x = 1, xend = 2016, y = iWT4, yend = iWT4), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2016, y = iHET4, yend = iHET4), colour = "red", size = 0.5, linetype = "dashed")  + geom_segment (aes (x = 2017, xend = 4032, y = iWT4H, yend = iWT4H), colour = "black", size = 0.5) + geom_segment (aes (x = 2017, xend = 4032, y = iHET4H, yend = iHET4H), colour = "red", size = 0.5, linetype = "dashed")
+
+cleanDataHSD = subset (cleanData, Diet == "HSD")
+cleanDataNSD = subset (cleanData, Diet != "HSD")
+
+pMAPHSD <- ggplot (cleanDataHSD, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanDataHSD, (ID == "P09_LN1412" | ID == "P11_1306" | ID == "P29_LN1402") & DN == "Night"), aes (y = 90), shape = 124, size = 0.5) + coord_cartesian (ylim = c (90, 125)) + scale_y_continuous (breaks = c (90, 100, 110, 120)) + geom_segment (aes (x = 1, xend = 2304, y = iWT4H, yend = iWT4H), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2304, y = iHET4H, yend = iHET4H), colour = "red", size = 0.5, linetype = "dashed") + theme (axis.title.y = element_blank (), axis.text.y = element_blank (), axis.ticks.y = element_blank ()) + ylab ("") + geom_segment (aes (x = 1, xend = 1, y = 90, yend = 125), colour = "black", size = 1)
+
+pMAPNSD <- ggplot (cleanDataNSD, aes (x = paste (Day, Time.1), y = Var)) + geom_smooth (method = "loess", span = 0.05, aes (group = Group, color = Group), alpha = 0.5, size = 0.5) + theme (axis.title.x = element_blank (), axis.text.y = element_text (size = 6), axis.title.y = element_text (size = 6), axis.text.x = element_blank (), axis.ticks.x = element_blank (), legend.position = "none") + scale_color_manual (values = c ("red", "black")) + ylab (varName) + geom_point (data = subset (cleanDataNSD, (ID == "P28_LN1401" | ID == "P11_1306" | ID == "P29_LN1402") & DN == "Night"), aes (y = 90), shape = 124, size = 0.5) + coord_cartesian (ylim = c (90, 125)) + scale_y_continuous (breaks = c (90, 100, 110, 120)) + geom_segment (aes (x = 1, xend = 2304, y = iWT4, yend = iWT4), colour = "black", size = 0.5) + geom_segment (aes (x = 1, xend = 2304, y = iHET4, yend = iHET4), colour = "red", size = 0.5, linetype = "dashed") + geom_segment (aes (x = 2304, xend = 2304, y = 90, yend = 125), colour = "black", size = 1)
+
+ppN <- plot_grid (pSystolicNSD, pSystolicHSD, pDiastolicNSD, pDiastolicHSD, pMAPNSD, pMAPHSD, pHRNSD, pHRHSD, labels = c ("", "", "", "", "", "", "", ""), nrow = 4, align = "h", rel_widths = c (11, 10))
+
+pdf (file = "CACNA1H_BP_mice_20210320.pdf", width = 3.54, height = 2.36)
+print (ppN)
+dev.off ()
+
+print ("Systolic, NSD, WT")
+print (mean (subset (cleanData, Group != "HET" & Diet != "HSD")$Systolic))
+print (sd (subset (cleanData, Group != "HET" & Diet != "HSD")$Systolic))
+print ("Systolic, NSD, HET")
+print (mean (subset (cleanData, Group == "HET" & Diet != "HSD")$Systolic))
+print (sd (subset (cleanData, Group == "HET" & Diet != "HSD")$Systolic))
+print ("Systolic, HSD, WT")
+print (mean (subset (cleanData, Group != "HET" & Diet == "HSD")$Systolic))
+print (sd (subset (cleanData, Group != "HET" & Diet == "HSD")$Systolic))
+print ("Systolic, HSD, HET")
+print (mean (subset (cleanData, Group == "HET" & Diet == "HSD")$Systolic))
+print (sd (subset (cleanData, Group == "HET" & Diet == "HSD")$Systolic))
+
+print ("Diastolic, NSD, WT")
+print (mean (subset (cleanData, Group != "HET" & Diet != "HSD")$Diastolic))
+print (sd (subset (cleanData, Group != "HET" & Diet != "HSD")$Diastolic))
+print ("Diastolic, NSD, HET")
+print (mean (subset (cleanData, Group == "HET" & Diet != "HSD")$Diastolic))
+print (sd (subset (cleanData, Group == "HET" & Diet != "HSD")$Diastolic))
+print ("Diastolic, HSD, WT")
+print (mean (subset (cleanData, Group != "HET" & Diet == "HSD")$Diastolic))
+print (sd (subset (cleanData, Group != "HET" & Diet == "HSD")$Diastolic))
+print ("Diastolic, HSD, HET")
+print (mean (subset (cleanData, Group == "HET" & Diet == "HSD")$Diastolic))
+print (sd (subset (cleanData, Group == "HET" & Diet == "HSD")$Diastolic))
+
+print ("MAP, NSD, WT")
+print (mean (subset (cleanData, Group != "HET" & Diet != "HSD")$MAP))
+print (sd (subset (cleanData, Group != "HET" & Diet != "HSD")$MAP))
+print ("MAP, NSD, HET")
+print (mean (subset (cleanData, Group == "HET" & Diet != "HSD")$MAP))
+print (sd (subset (cleanData, Group == "HET" & Diet != "HSD")$MAP))
+print ("MAP, HSD, WT")
+print (mean (subset (cleanData, Group != "HET" & Diet == "HSD")$MAP))
+print (sd (subset (cleanData, Group != "HET" & Diet == "HSD")$MAP))
+print ("MAP, HSD, HET")
+print (mean (subset (cleanData, Group == "HET" & Diet == "HSD")$MAP))
+print (sd (subset (cleanData, Group == "HET" & Diet == "HSD")$MAP))
+
+print ("Heart.Rate, NSD, WT")
+print (mean (subset (cleanData, Group != "HET" & Diet != "HSD")$Heart.Rate))
+print (sd (subset (cleanData, Group != "HET" & Diet != "HSD")$Heart.Rate))
+print ("Heart.Rate, NSD, HET")
+print (mean (subset (cleanData, Group == "HET" & Diet != "HSD")$Heart.Rate))
+print (sd (subset (cleanData, Group == "HET" & Diet != "HSD")$Heart.Rate))
+print ("Heart.Rate, HSD, WT")
+print (mean (subset (cleanData, Group != "HET" & Diet == "HSD")$Heart.Rate))
+print (sd (subset (cleanData, Group != "HET" & Diet == "HSD")$Heart.Rate))
+print ("Heart.Rate, HSD, HET")
+print (mean (subset (cleanData, Group == "HET" & Diet == "HSD")$Heart.Rate))
+print (sd (subset (cleanData, Group == "HET" & Diet == "HSD")$Heart.Rate))
